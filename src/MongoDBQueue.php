@@ -2,19 +2,19 @@
 namespace ChefsPlate\Queue;
 
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Database\Connection;
 use Illuminate\Queue\DatabaseQueue;
+use Illuminate\Queue\Jobs\DatabaseJob;
 use MongoDB;
 use MongoDB\Driver;
-use MongoDB\Driver\WriteResult;
 
 class MongoDBQueue extends DatabaseQueue
 {
-    /** @var Driver\Manager */
-    private $manager;
+    /** @var MongoDB\Client */
+    private $client;
 
-    /** @var string $namespace A fully qualified namespace (databaseName.collectionName) */
-    private $namespace;
+    private $databaseName;
 
     /**
      * @param  \Illuminate\Database\Connection $database
@@ -33,8 +33,33 @@ class MongoDBQueue extends DatabaseQueue
         );
         $driverOptions = array();
 
-        $this->manager   = new MongoDB\Driver\Manager($dsn, $options, $driverOptions);
-        $this->namespace = $database->getConfig('database') . "." . $table;
+        $this->client       = new MongoDB\Client($dsn, $options, $driverOptions);
+        $this->databaseName = $database->getConfig('database');
+    }
+
+    /**
+     * Pop the next job off of the queue.
+     *
+     * @param  string $queue
+     * @return \Illuminate\Contracts\Queue\Job|null
+     */
+    public function pop($queue = null)
+    {
+        $queue = $this->getQueue($queue);
+
+        if (!is_null($this->expire)) {
+            $this->releaseJobsThatHaveBeenReservedTooLong($queue);
+        }
+
+        if ($job = $this->getNextAvailableJobAndMarkAsReserved($queue)) {
+            $this->database->commit();
+
+            return new DatabaseJob(
+                $this->container, $this, $job, $queue
+            );
+        }
+
+        $this->database->commit();
     }
 
     /**
@@ -54,24 +79,11 @@ class MongoDBQueue extends DatabaseQueue
 //            ->orderBy('_id', 'asc')
 //            ->first();
 
-        $cursor = $this->manager->executeQuery(
-            $this->namespace,
-            new MongoDB\Driver\Query(
-                [
-                    'reserved'     => 0,
-                    'available_at' => ['$lte' => $this->getTime()],
-                    'queue'        => $this->getQueue($queue)
-                ],
-                [
-//                    'projection' => ['_id' => 0],
-                    'sort' => ['_id' => -1],
-                ]
-            )
-        );
-
-        // TODO: use projections to return 1 object
-        $jobs_array = $cursor->toArray();
-        $job        = array_shift($jobs_array);
+        $job = $this->client->selectCollection($this->databaseName, $this->table)->findOne(
+        // filter
+            ['reserved' => 0, 'available_at' => ['$lte' => $this->getTime()], 'queue' => $this->getQueue($queue)],
+            // update
+            ['sort' => ['_id' => -1]]);
 
         if ($job) {
             $job     = (object)$job;
@@ -102,16 +114,9 @@ class MongoDBQueue extends DatabaseQueue
 //            $this->releaseJob($job['_id'], $attempts);
 //        }
 
-        $reserved = $this->manager->executeQuery(
-            $this->namespace,
-            new MongoDB\Driver\Query(
-                [
-                    'queue'       => $this->getQueue($queue),
-                    'reserved'    => 1,
-                    'reserved_at' => ['$lte' => $expired]
-                ]
-            )
-        )->toArray();
+        $reserved = $this->client->selectCollection($this->databaseName, $this->table)->find(
+                [ 'queue' => $this->getQueue($queue), 'reserved' => 1, 'reserved_at' => ['$lte' => $expired]]
+        );
 
         // TODO: can use bulk writes here
         foreach ($reserved as $job) {
@@ -138,19 +143,43 @@ class MongoDBQueue extends DatabaseQueue
 //        ]);
 
         try {
-            $bulk = new MongoDB\Driver\BulkWrite(['ordered' => true]);
-            $bulk->update(['_id' => $id], ['$set' => ['reserved' => 0, 'reserved_at' => null, 'attempts' => $attempts], '$isolated' => 1]);
-
-            /** @var WriteResult $result */
-            $result = $this->manager->executeBulkWrite($this->namespace, $bulk);
-            $this->displayResults($result);
-
-        } catch (MongoDB\Driver\Exception\BulkWriteException $e) {
-            $this->displayResults($e->getWriteResult());
-        } catch (MongoDB\Driver\Exception\Exception $e) {
+            $result = $this->client->selectCollection($this->databaseName, $this->table)->updateOne(
+            // filter
+                ['_id' => $id],
+                // update
+                ['$set' => ['reserved' => 0, 'reserved_at' => null, 'attempts' => $attempts]],
+                // option
+                ['$isolated' => 1]
+            );
+        } catch (Exception $e) {
             printf("Other error: %s\n", $e->getMessage());
             exit;
         }
+    }
+
+
+    /**
+     *
+     * @param $queue
+     */
+    protected function getNextAvailableJobAndMarkAsReserved($queue)
+    {
+        $job = $this->client->selectCollection($this->databaseName, $this->table)->findOneAndUpdate(
+        // query
+            ['reserved' => 0, 'available_at' => ['$lte' => $this->getTime()], 'queue' => $this->getQueue($queue)],
+            // update
+            ['$set' => ['reserved' => 1, 'reserved_at' => $this->getTime()]],
+            // options
+            ['sort' => ['_id' => -1], 'new' => true, '$isolated' => 1]
+        );
+
+        if ($job) {
+            $job     = (object)$job;
+            $job->id = $job->_id;
+        }
+
+        return $job ?: null;
+
     }
 
     /**
@@ -167,16 +196,14 @@ class MongoDBQueue extends DatabaseQueue
 //        ]);
 
         try {
-            $bulk = new MongoDB\Driver\BulkWrite(['ordered' => true]);
-            $bulk->update(['_id' => $id], ['$set' => ['reserved' => 1, 'reserved_at' => $this->getTime()], '$isolated' => 1]);
-
-            /** @var WriteResult $result */
-            $result = $this->manager->executeBulkWrite($this->namespace, $bulk);
-            $this->displayResults($result);
-
-        } catch (MongoDB\Driver\Exception\BulkWriteException $e) {
-            $this->displayResults($e->getWriteResult());
-        } catch (MongoDB\Driver\Exception\Exception $e) {
+            $result = $this->client->selectCollection($this->databaseName, $this->table)->updateOne(
+            // filter
+                ['_id' => $id],
+                // update
+                ['$set' => ['reserved' => 1, 'reserved_at' => $this->getTime()]],
+                // options
+                ['$isolated' => 1]);
+        } catch (Exception $e) {
             printf("Other error: %s\n", $e->getMessage());
             exit;
         }
@@ -194,46 +221,14 @@ class MongoDBQueue extends DatabaseQueue
         // original query: $this->database->table($this->table)->where('_id', $id)->delete();
 
         try {
-            $bulk = new MongoDB\Driver\BulkWrite(['ordered' => true]);
-            $bulk->delete(['_id' => $id], ['$isolated' => 1]);
-
-            /** @var WriteResult $result */
-            $result = $this->manager->executeBulkWrite($this->namespace, $bulk);
-            $this->displayResults($result);
-
-        } catch (MongoDB\Driver\Exception\BulkWriteException $e) {
-            $this->displayResults($e->getWriteResult());
-        } catch (MongoDB\Driver\Exception\Exception $e) {
+            $result = $this->client->selectCollection($this->databaseName, $this->table)->deleteOne(
+            // filter
+                ['_id' => $id],
+                // options
+                ['$isolated' => 1]);
+        } catch (Exception $e) {
             printf("Other error: %s\n", $e->getMessage());
             exit;
         }
     }
-
-    /**
-     * @param WriteResult $result
-     */
-    private function displayResults($result)
-    {
-        printf("Inserted %d document(s)\n", $result->getInsertedCount());
-        printf("Matched  %d document(s)\n", $result->getMatchedCount());
-        printf("Updated  %d document(s)\n", $result->getModifiedCount());
-        printf("Upserted %d document(s)\n", $result->getUpsertedCount());
-        printf("Deleted  %d document(s)\n", $result->getDeletedCount());
-
-        foreach ($result->getUpsertedIds() as $index => $id) {
-            printf('upsertedId[%d]: ', $index);
-            var_dump($id);
-        }
-
-        /* If the WriteConcern could not be fulfilled */
-        if ($writeConcernError = $result->getWriteConcernError()) {
-            printf("%s (%d): %s\n", $writeConcernError->getMessage(), $writeConcernError->getCode(), var_export($writeConcernError->getInfo(), true));
-        }
-
-        /* If a write could not happen at all */
-        foreach ($result->getWriteErrors() as $writeError) {
-            printf("Operation#%d: %s (%d)\n", $writeError->getIndex(), $writeError->getMessage(), $writeError->getCode());
-        }
-    }
-
 }
