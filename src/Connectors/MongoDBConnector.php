@@ -21,10 +21,7 @@ class MongoDBConnector extends DatabaseConnector
             $this->connections->connection(array_get($config, 'connection')),
             $config['table'],
             $config['queue'],
-            array_get($config, 'expire', 60),
-            array_get($config, 'binary', 'php'),
-            array_get($config, 'binary_args', ''),
-            array_get($config, 'connection_name', '')
+            array_get($config, 'expire', 60)
         );
     }
 }
