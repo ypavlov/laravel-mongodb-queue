@@ -1,34 +1,96 @@
 <?php
 namespace ChefsPlate\Queue;
 
-use Illuminate\Database\Connection;
+use Carbon\Carbon;
 use Illuminate\Queue\DatabaseQueue;
 
 
 class MongoDBQueue extends DatabaseQueue
 {
-    /** @var string */
-    protected $binary;
+    /**
+     * Get the next available job for the queue.
+     *
+     * @param  string|null $queue
+     * @return \StdClass|null
+     */
+    protected function getNextAvailableJob($queue)
+    {
+        $job = $this->database->table($this->table)
+            ->lockForUpdate()
+            ->where('queue', $this->getQueue($queue))
+            ->where('reserved', 0)
+            ->where('available_at', '<=', $this->getTime())
+            ->orderBy('_id', 'asc')
+            ->first();
 
-    /** @var string */
-    protected $binaryArgs;
+        if ($job) {
+            $job     = (object)$job;
+            $job->id = $job->_id;
+        }
 
-    /** @var string */
-    protected $connectionName;
+        return $job ?: null;
+    }
 
     /**
-     * @param  \Illuminate\Database\Connection $database
-     * @param  string $table
-     * @param  string $default
-     * @param  int $expire
-     * @param  string $binary
-     * @param  string|array $binaryArgs
+     * Release the jobs that have been reserved for too long.
+     *
+     * @param  string $queue
+     * @return void
      */
-    public function __construct(Connection $database, $table, $default = 'default', $expire = 60, $binary = 'php', $binaryArgs = '', $connectionName = '')
+    protected function releaseJobsThatHaveBeenReservedTooLong($queue)
     {
-        parent::__construct($database, $table, $default, $expire);
-        $this->binary         = $binary;
-        $this->binaryArgs     = $binaryArgs;
-        $this->connectionName = $connectionName;
+        $expired = Carbon::now()->subSeconds($this->expire)->getTimestamp();
+
+        $reserved = $this->database->collection($this->table)
+            ->where('queue', $this->getQueue($queue))
+            ->where('reserved', 1)
+            ->where('reserved_at', '<=', $expired)->get();
+
+        foreach ($reserved as $job) {
+            $attempts = $job['attempts'] + 1;
+            $this->releaseJob($job['_id'], $attempts);
+        }
     }
+
+    /**
+     * Release the given job ID from reservation.
+     *
+     * @param  string $id
+     *
+     * @return void
+     */
+    protected function releaseJob($id, $attempts)
+    {
+        $this->database->table($this->table)->where('_id', $id)->update([
+            'reserved'    => 0,
+            'reserved_at' => null,
+            'attempts'    => $attempts,
+        ]);
+    }
+
+    /**
+     * Mark the given job ID as reserved.
+     *
+     * @param  string $id
+     * @return void
+     */
+    protected function markJobAsReserved($id)
+    {
+        $this->database->collection($this->table)->where('_id', $id)->update([
+            'reserved' => 1, 'reserved_at' => $this->getTime(),
+        ]);
+    }
+
+    /**
+     * Delete a reserved job from the queue.
+     *
+     * @param  string $queue
+     * @param  string $id
+     * @return void
+     */
+    public function deleteReserved($queue, $id)
+    {
+        $this->database->table($this->table)->where('_id', $id)->delete();
+    }
+
 }
