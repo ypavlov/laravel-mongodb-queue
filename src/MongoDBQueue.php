@@ -64,7 +64,7 @@ class MongoDBQueue extends DatabaseQueue
                 ],
                 [
 //                    'projection' => ['_id' => 0],
-'sort' => ['_id' => -1],
+                    'sort' => ['_id' => -1],
                 ]
             )
         );
@@ -139,7 +139,7 @@ class MongoDBQueue extends DatabaseQueue
 
         try {
             $bulk = new MongoDB\Driver\BulkWrite(['ordered' => true]);
-            $bulk->update(['_id' => $id], ['$set' => ['reserved' => 0, 'reserved_at' => null, 'attempts' => $attempts]]);
+            $bulk->update(['_id' => $id], ['$set' => ['reserved' => 0, 'reserved_at' => null, 'attempts' => $attempts], '$isolated' => 1]);
 
             /** @var WriteResult $result */
             $result = $this->manager->executeBulkWrite($this->namespace, $bulk);
@@ -168,7 +168,7 @@ class MongoDBQueue extends DatabaseQueue
 
         try {
             $bulk = new MongoDB\Driver\BulkWrite(['ordered' => true]);
-            $bulk->update(['_id' => $id], ['$set' => ['reserved' => 1, 'reserved_at' => $this->getTime()]]);
+            $bulk->update(['_id' => $id], ['$set' => ['reserved' => 1, 'reserved_at' => $this->getTime()], '$isolated' => 1]);
 
             /** @var WriteResult $result */
             $result = $this->manager->executeBulkWrite($this->namespace, $bulk);
@@ -195,7 +195,7 @@ class MongoDBQueue extends DatabaseQueue
 
         try {
             $bulk = new MongoDB\Driver\BulkWrite(['ordered' => true]);
-            $bulk->delete(['_id' => $id]);
+            $bulk->delete(['_id' => $id], ['$isolated' => 1]);
 
             /** @var WriteResult $result */
             $result = $this->manager->executeBulkWrite($this->namespace, $bulk);
