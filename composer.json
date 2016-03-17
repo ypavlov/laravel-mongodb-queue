@@ -1,6 +1,6 @@
 {
   "name": "chefsplate/laravel-mongodb-queue",
-  "description": "MongoDB (3.2+) Queue Driver for Laravel",
+  "description": "Thread-safe MongoDB database queue implementation for Laravel",
   "keywords": ["laravel", "queue", "mongo", "mongodb"],
   "license": "MIT",
   "authors": [

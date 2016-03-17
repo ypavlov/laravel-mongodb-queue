@@ -4,25 +4,31 @@ Thread-safe MongoDB database queue implementation for Laravel.
 This driver is compatible with jensseger's 
 [laravel-mongodb](https://github.com/jenssegers/laravel-mongodb) library, 
 however we use the mongodb client instead so we can leverage 
-findAndModify updates with write concerns and $isolated operations.
+`findAndModify` updates with write concerns and `$isolated` operations.
 
 ## Requirements
 - PHP 5.4+
 - mongodb-1.1.x PHP driver (or higher) 
-- Mongo 3.2+ (Mongo 2.2+ may be supported; use at your own risk. Future 
-updates may include bulk updates which have been added in Mongo 3.2)
+- Mongo 3.x+ (see note below*)
+- Laravel 5.x
 - You may also leverage laravel-mongodb in your project
 
+*Note: Although concurrency and locking have been implemented since Mongo 2.2, 
+the locking is done at the database level, which makes it highly non-performant. 
+Since Mongo 3.0, collection-level and even document-level locking has been added. 
+Future updates may leverage bulk updates which have been added in Mongo 3.2, 
+which make it the ideal minimum version to install.
+
 For more details on driver compatibility, please see 
-[the MongoDB ecosystem documentation](https://docs.mongodb.org/ecosystem/drivers/php/#php-mongodb-driver) 
+[the MongoDB ecosystem documentation](https://docs.mongodb.org/ecosystem/drivers/php/#php-mongodb-driver).
 
 ## Install
 
-Require the latest version of this package with Composer
+Require the latest version of this package with Composer:
 
     composer require chefsplate/laravel-mongodb-queue:"0.1.x"
 
-Add the Service Provider to the providers array in config/app.php
+Add the Service Provider to the providers array in config/app.php:
 
     ChefsPlate\Queue\MongoDBServiceProvider::class,
 
@@ -31,7 +37,7 @@ You need to create the migration table for queues and run it.
     $ php artisan queue:table
     $ php artisan migrate
 
-You should now be able to use the **mongodb** driver in config/queue.php. (Use the same config as for the database, but use mongodb as driver.)
+You should now be able to use the **mongodb** driver in config/queue.php. (Use the same config as for the database, but use mongodb as the driver.)
 
     'default' => 'mongodb',
 
