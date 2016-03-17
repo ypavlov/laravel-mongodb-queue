@@ -83,7 +83,7 @@ class MongoDBQueue extends DatabaseQueue
         // filter
             ['reserved' => 0, 'available_at' => ['$lte' => $this->getTime()], 'queue' => $this->getQueue($queue)],
             // update
-            ['sort' => ['_id' => -1]]);
+            ['sort' => ['_id' => 1]]);
 
         if ($job) {
             $job     = (object)$job;
@@ -170,7 +170,7 @@ class MongoDBQueue extends DatabaseQueue
             // update
             ['$set' => ['reserved' => 1, 'reserved_at' => $this->getTime()]],
             // options
-            ['sort' => ['_id' => -1], 'new' => true, '$isolated' => 1]
+            ['sort' => ['_id' => 1], 'new' => true, '$isolated' => 1]
         );
 
         if ($job) {
