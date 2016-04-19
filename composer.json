@@ -1,7 +1,7 @@
 {
   "name": "chefsplate/laravel-mongodb-queue",
   "description": "Thread-safe MongoDB database queue implementation for Laravel",
-  "keywords": ["laravel", "queue", "mongo", "mongodb"],
+  "keywords": ["laravel", "queue", "mongo", "mongodb", "database"],
   "homepage": "https://github.com/chefsplate/laravel-mongodb-queue",
   "license": "MIT",
   "authors": [

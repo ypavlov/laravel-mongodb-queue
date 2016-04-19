@@ -32,11 +32,6 @@ Add the Service Provider to the providers array in config/app.php:
 
     ChefsPlate\Queue\MongoDBServiceProvider::class,
 
-You need to create the migration table for queues and run it.
-
-    $ php artisan queue:table
-    $ php artisan migrate
-
 You should now be able to use the **mongodb** driver in config/queue.php. (Use the same config as for the database, but use mongodb as the driver.)
 
     'default' => 'mongodb',
@@ -51,6 +46,8 @@ You should now be able to use the **mongodb** driver in config/queue.php. (Use t
         ),
         ...
     }
+
+Note: Mongo will automatically create the jobs collection. No database migration is needed.
 
 Please ensure your config/database.php configuration for mongodb 
 includes a DSN. This is required by our driver:
