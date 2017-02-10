@@ -10,7 +10,7 @@ however we use the mongodb client instead so we can leverage
 - PHP 5.4+
 - mongodb-1.1.x PHP driver (or higher) 
 - Mongo 3.x+ (see note below*)
-- Laravel 5.3 (**for Laravel 5.1 or 5.2 support, please use the 5.1 branch**)
+- Laravel 5.1 or 5.2 (**for Laravel 5.3+ support, please use the 5.3 branch**)
 - You may also leverage laravel-mongodb in your project
 
 *Note: Although concurrency and locking have been implemented since Mongo 2.2, 
@@ -26,7 +26,7 @@ For more details on driver compatibility, please see
 
 Require the latest version of this package with Composer:
 
-    composer require chefsplate/laravel-mongodb-queue:"^1.0.0"
+    composer require chefsplate/laravel-mongodb-queue:"5.1.x-dev"
 
 Add the Service Provider to the providers array in config/app.php:
 
