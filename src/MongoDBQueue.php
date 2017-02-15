@@ -90,7 +90,10 @@ class MongoDBQueue extends DatabaseQueue
         // query
             ['available_at' => ['$lte' => $this->getTime()], 'queue' => $this->getQueue($queue)],
             // update
-            ['$set' => ['reserved_at' => $this->getTime()]],
+            [
+                '$set' => ['reserved_at' => $this->getTime()],
+                '$inc' => ['attempts' => 1]
+            ],
             // options
             ['sort' => ['_id' => 1], 'new' => true, '$isolated' => 1]
         );
@@ -101,20 +104,6 @@ class MongoDBQueue extends DatabaseQueue
             // set the job ID based on Mongo's _id
             $job     = (object)$job;
             $job->id = $job->_id;
-
-            // now that we have the job, we can update the number of attempts afterwards
-            $result = $this->client->selectCollection($this->databaseName, $this->table)->updateOne(
-            // filter
-                ['_id' => $job->id],
-                // update
-                [
-                    '$set' => [
-                        'attempts' => $job->attempts + 1
-                    ]
-                ],
-                // options
-                ['$isolated' => 1]);
-            $this->database->commit();
         }
 
         return $job ?: null;
