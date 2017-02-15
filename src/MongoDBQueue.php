@@ -110,7 +110,11 @@ class MongoDBQueue extends DatabaseQueue
                 '$inc' => ['attempts' => 1]
             ],
             // options
-            ['sort' => ['_id' => 1], 'new' => true, '$isolated' => 1]
+            [
+                'sort' => ['_id' => 1],
+                'returnDocument' => MongoDB\Operation\FindOneAndUpdate::RETURN_DOCUMENT_AFTER,
+                '$isolated' => 1
+            ]
         );
 
         if ($job) {
