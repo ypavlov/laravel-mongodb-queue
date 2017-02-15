@@ -86,9 +86,24 @@ class MongoDBQueue extends DatabaseQueue
      */
     protected function getNextAvailableJobAndMarkAsReserved($queue)
     {
+        $expiration = Carbon::now()->subSeconds($this->expire)->getTimestamp();
+
         $job = $this->client->selectCollection($this->databaseName, $this->table)->findOneAndUpdate(
         // query
-            ['available_at' => ['$lte' => $this->getTime()], 'queue' => $this->getQueue($queue)],
+            [
+                'queue' => $this->getQueue($queue),
+                '$or'   => [
+                    // job must be available
+                    [
+                        'reserved_at'  => null,
+                        'available_at' => ['$lte' => $this->getTime()]
+                    ],
+                    // or is reserved but expired
+                    [
+                        'reserved_at' => ['$lte' => $expiration]
+                    ]
+                ]
+            ],
             // update
             [
                 '$set' => ['reserved_at' => $this->getTime()],
