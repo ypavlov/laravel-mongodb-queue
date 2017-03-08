@@ -12,9 +12,9 @@
   ],
   "require": {
     "php": ">=5.4.0",
-    "illuminate/support": "^5.3",
-    "illuminate/database": "^5.3",
-    "illuminate/queue": "^5.3",
+    "illuminate/support": "5.3.*|5.4.*",
+    "illuminate/database": "5.3.*|5.4.*",
+    "illuminate/queue": "5.3.*|5.4.*",
     "symfony/process": "~2.6|~3.0",
     "mongodb/mongodb": "^1.0.0"
   },
