@@ -10,7 +10,7 @@ class MongoDBConnector extends DatabaseConnector
 
     /**
      * Establish a queue connection.
-     *
+     * Added by vanush to test fork
      * @param array $config
      *
      * @return \Illuminate\Contracts\Queue\Queue
